@@ -15,13 +15,38 @@ from ts_engine.lgs_estimator import (
 load_dotenv()
 st.set_page_config(page_title="TS AI – LGS Quantity & Cost Estimator", page_icon="🏗️", layout="wide")
 st.markdown("""<style>
-.block-container{padding-top:1.2rem;max-width:1500px}
-.hero{padding:18px 22px;border:1px solid #ddd;border-radius:14px;margin-bottom:14px}
-.hero h1{margin:0}.hero p{margin:5px 0 0;opacity:.75}
-[data-testid="stMetric"]{border:1px solid #e5e5e5;padding:10px;border-radius:10px}
+/* TS AI Corporate Light Theme */
+:root{--ts-navy:#0B1F33;--ts-teal:#0F766E;--ts-teal2:#14B8A6;--ts-bg:#F4F7FA;--ts-card:#FFFFFF;--ts-text:#172033;--ts-muted:#667085;--ts-border:#D8E1EA}
+.stApp{background:var(--ts-bg);color:var(--ts-text)}
+.block-container{padding-top:1.25rem;max-width:1500px;padding-bottom:2.5rem}
+.hero{padding:26px 30px;border:0;border-radius:18px;margin-bottom:16px;background:linear-gradient(135deg,#0B1F33 0%,#123B50 58%,#0F766E 100%);box-shadow:0 10px 30px rgba(11,31,51,.16)}
+.hero h1{margin:0;color:white;font-size:2.25rem;font-weight:800;letter-spacing:-.02em}
+.hero p{margin:8px 0 0;color:#D7F3EE;font-size:1.02rem}
+[data-testid="stSidebar"]{background:#0B1F33;border-right:1px solid #16354F}
+[data-testid="stSidebar"] *{color:#F8FAFC}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{color:#D6E0EA}
+[data-testid="stSidebar"] hr{border-color:#29435B}
+[data-testid="stSidebar"] button{background:#0F766E!important;color:white!important;border:1px solid #21A69A!important;border-radius:10px!important}
+[data-testid="stSidebar"] button:hover{background:#0B625C!important}
+[data-testid="stMetric"]{background:var(--ts-card);border:1px solid var(--ts-border);padding:14px 16px;border-radius:14px;box-shadow:0 3px 12px rgba(16,24,40,.06)}
+[data-testid="stMetricLabel"]{color:var(--ts-muted)!important;font-weight:650}
+[data-testid="stMetricValue"]{color:var(--ts-navy)!important;font-weight:800}
+.stTabs [data-baseweb="tab-list"]{gap:8px;background:#E9EEF3;padding:6px;border-radius:12px}
+.stTabs [data-baseweb="tab"]{height:42px;border-radius:9px;padding:0 16px;color:#344054;font-weight:650}
+.stTabs [aria-selected="true"]{background:white!important;color:var(--ts-teal)!important;box-shadow:0 2px 8px rgba(16,24,40,.08)}
+.stButton>button,.stDownloadButton>button{border-radius:10px;font-weight:700;border:1px solid var(--ts-teal)}
+.stButton>button[kind="primary"]{background:var(--ts-teal);color:white;border-color:var(--ts-teal)}
+.stButton>button[kind="primary"]:hover{background:#0B625C;border-color:#0B625C}
+[data-testid="stFileUploader"]{background:white;border:1px solid var(--ts-border);border-radius:14px;padding:6px 10px}
+[data-testid="stDataFrame"], [data-testid="stDataEditor"]{background:white;border-radius:12px;overflow:hidden;border:1px solid var(--ts-border)}
+div[data-testid="stAlert"]{border-radius:12px;border-width:1px}
+.stTextInput input,.stNumberInput input,.stTextArea textarea{background:white!important;color:var(--ts-text)!important;border-radius:9px!important}
+h1,h2,h3{color:var(--ts-navy)}
+.caption,.stCaption{color:var(--ts-muted)!important}
+.ts-badge{display:inline-block;margin-top:12px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.13);color:#E6FFFA;font-size:.78rem;font-weight:700;letter-spacing:.03em}
 </style>""",unsafe_allow_html=True)
 
-st.markdown('<div class="hero"><h1>TS AI – LGS Quantity & Cost Estimator</h1><p>Drawings + Specifications + BOQ → Detailed LGS Quantity Takeoff → Labor Hours → Indicative Saudi Cost</p></div>',unsafe_allow_html=True)
+st.markdown('<div class="hero"><h1>TS AI – LGS Quantity & Cost Estimator</h1><p>Drawings + Specifications + BOQ → Detailed LGS Quantity Takeoff → Labor Hours → Indicative Saudi Cost</p><span class="ts-badge">AI AGENT · LGS ESTIMATING · SAUDI MARKET</span></div>',unsafe_allow_html=True)
 st.warning("Cost rates are indicative Saudi-market baselines for estimating only. Confirm supplier/subcontractor quotations before issuing a commercial offer.")
 
 if "rows" not in st.session_state: st.session_state.rows=[]
