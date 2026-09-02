@@ -33,3 +33,11 @@ This loads the supplied contractor office benchmark:
 
 ## Important
 Indicative Saudi-market baseline rates are estimating assumptions, not supplier quotations. Confirm procurement quotations, engineered LGS design and MEP takeoff before commercial submission.
+
+
+## v1.2 Multi-Building Fix
+- Retains every uploaded building drawing even when Vision/API credits fail.
+- Separates local parsing from Vision status; HTTP 429 is no longer shown as a file-read failure.
+- Building Coverage Register shows all recognized building drawings.
+- AI output is building-by-building and includes a coverage guard to prevent omitted buildings.
+- Cost output supports per-building and project totals.

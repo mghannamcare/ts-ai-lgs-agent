@@ -75,58 +75,111 @@ def apply_overheads(rows, transport_pct=3, equipment_pct=2, contingency_pct=5):
     return {**s,"transport_sar":round(transport,2),"equipment_consumables_sar":round(equipment,2),
       "contingency_sar":round(contingency,2),"estimated_cost_sar":round(direct+transport+equipment+contingency,2)}
 
+def _source_building_names(corpus: str):
+    """Recognize all uploaded building drawing filenames so failed Vision never makes a building disappear."""
+    names=[]
+    for name in re.findall(r"\[SOURCE FILE:\s*([^\]]+)\]", corpus or "", flags=re.I):
+        low=name.lower()
+        if low.endswith((".pdf", ".png", ".jpg", ".jpeg", ".webp")):
+            clean=re.sub(r"\.(pdf|png|jpg|jpeg|webp)$", "", name, flags=re.I)
+            clean=re.sub(r"\s*-?\s*model\s*$", "", clean, flags=re.I)
+            clean=re.sub(r"[_-]+", " ", clean).strip()
+            if clean and clean not in names:
+                names.append(clean)
+    return names
+
+
 def ai_lgs_takeoff(corpus, project="", model=None):
+    """Multi-building AI takeoff. Never silently drops drawings when Vision/API is unavailable."""
     key=os.getenv("OPENAI_API_KEY")
-    if not key: return None
+    detected=_source_building_names(corpus)
+    if not key:
+        return {
+            "project": project,
+            "mode": "local_coverage_only",
+            "buildings": [{"building_name":n,"status":"RECOGNIZED - AI/VISION REQUIRED","quantity_rows":[],"assumptions":[],
+                           "clarifications":["Drawing recognized, but AI/Vision is not configured; exact drawing quantities were not inferred."]} for n in detected],
+            "quantity_rows": [],
+            "assumptions": [],
+            "clarifications": ["AI/Vision is required for image-based drawing quantity extraction."],
+            "detected_buildings": detected,
+        }
     from openai import OpenAI
     client=OpenAI(api_key=key); model=model or os.getenv("OPENAI_MODEL") or "gpt-5.6-terra"
     prompt=f"""You are a senior LGS quantity surveyor in Saudi Arabia. Analyze ONLY the LGS/prefabricated-building scope in the supplied drawings/specifications/BOQ text.
 Project: {project}
 SOURCE:
 {corpus[:300000]}
-Return JSON only with keys: project, building_dimensions, assumptions, clarifications, quantity_rows.
+
+CRITICAL MULTI-BUILDING RULES:
+- Treat EACH uploaded building drawing as a separate building. Do not merge buildings and never stop at the first building.
+- First inventory every building/source file. A building must remain in the output even if its dimensions/quantities cannot be read.
+- Reconcile building names and explicit quantities in the BOQ with drawing filenames where possible.
+- Do not invent exact dimensions or quantities. If unavailable, keep the building with status NEEDS_REVIEW and explain what is missing.
+- Preserve source file/page/sheet references.
+
+Return JSON only with keys: project, buildings, assumptions, clarifications.
+Each object in buildings must contain: building_name, source_files, status, building_dimensions, area_m2, assumptions, clarifications, quantity_rows.
 quantity_rows is an array. Each object: category, material, unit, net_qty, waste_pct, source_reference, confidence, notes.
 Break down galvanized light gauge steel framing, tracks/studs/joists/trusses where evidence permits, boards, insulation, membranes, roof, floor, ceiling, finishes, doors/windows, fasteners/anchors/sealants/accessories.
-Never invent an exact quantity when drawings do not support it. Mark inferred quantities and LOW confidence. Preserve drawing/page/sheet references when visible.
 Do NOT price. Quantities only."""
     try:
-        r=client.responses.create(model=model,input=prompt,max_output_tokens=12000)
-        text=(r.output_text or "").strip()
-        if text.startswith("```"): text=re.sub(r"^```(?:json)?\s*|\s*```$","",text,flags=re.I|re.S).strip()
-        return json.loads(text)
+        r=client.responses.create(model=model,input=prompt,max_output_tokens=16000)
+        raw=(r.output_text or "").strip()
+        if raw.startswith("```"): raw=re.sub(r"^```(?:json)?\s*|\s*```$","",raw,flags=re.I|re.S).strip()
+        result=json.loads(raw)
+        buildings=result.get("buildings") or []
+        returned={str(b.get("building_name","")).strip().lower() for b in buildings}
+        # Coverage guard: any uploaded building omitted by AI is inserted as needs-review.
+        for n in detected:
+            if n.lower() not in returned and not any(n.lower() in x or x in n.lower() for x in returned if x):
+                buildings.append({"building_name":n,"source_files":[],"status":"NEEDS_REVIEW","building_dimensions":None,"area_m2":None,
+                                  "assumptions":[],"clarifications":["Uploaded drawing was recognized but omitted by AI response; manual/vision re-analysis required."],"quantity_rows":[]})
+        result["buildings"]=buildings
+        flat=[]
+        for b in buildings:
+            bname=b.get("building_name") or "Unassigned Building"
+            for q in b.get("quantity_rows") or []:
+                q=dict(q); q["building_name"]=bname; flat.append(q)
+        result["quantity_rows"]=flat
+        result["detected_buildings"]=detected
+        return result
     except Exception as e:
-        return {"error":str(e),"quantity_rows":[],"assumptions":[],"clarifications":["AI extraction failed; use parametric fallback or review source files."]}
+        msg=str(e)
+        credit=("429" in msg or "credit" in msg.lower() or "quota" in msg.lower())
+        return {
+            "project":project,"mode":"ai_unavailable","error":msg,"detected_buildings":detected,
+            "buildings":[{"building_name":n,"source_files":[],"status":"VISION CREDIT REQUIRED" if credit else "AI ERROR",
+                          "building_dimensions":None,"area_m2":None,"assumptions":[],
+                          "clarifications":["Building was recognized but drawing vision could not be completed. No exact quantity was invented."],"quantity_rows":[]} for n in detected],
+            "quantity_rows":[],"assumptions":[],
+            "clarifications":["AI/Vision credits are exhausted. Local extraction remains available; recharge/change API key for drawing vision." if credit else "AI extraction failed; local extraction remains available."]}
+
 
 def price_ai_rows(ai_rows):
     out=[]
     for q in ai_rows or []:
-        desc=str(q.get("material",""))
-        # fuzzy keyword map to baseline
-        low=desc.lower()
-        candidates=[]
+        desc=str(q.get("material","")); building=q.get("building_name") or q.get("Building") or "Unassigned Building"
+        low=desc.lower(); candidates=[]
         for p in PRICE_DB:
             words=[w for w in re.findall(r"[a-z0-9]+",p["material"].lower()) if len(w)>3]
-            score=sum(w in low for w in words)
-            candidates.append((score,p))
+            score=sum(w in low for w in words); candidates.append((score,p))
         score,p=max(candidates,key=lambda x:x[0]) if candidates else (0,None)
         if not p or score==0:
-            out.append({"Category":q.get("category",""),"Material / Activity":desc,"Unit":q.get("unit",""),
+            out.append({"Building":building,"Category":q.get("category",""),"Material / Activity":desc,"Unit":q.get("unit",""),
              "Net Qty":q.get("net_qty",0),"Waste %":q.get("waste_pct",0),"Gross Qty":q.get("net_qty",0),
              "Indicative Unit Cost SAR":None,"Material Cost SAR":None,"Labor Hours":None,"Labor Rate SAR/h":LABOR_RATE_SAR_H,
              "Labor Cost SAR":None,"Total Direct Cost SAR":None,"Price Range SAR":"PRICE REQUIRED",
              "Quantity Source":q.get("source_reference","AI extraction"),"Confidence":q.get("confidence","LOW"),
-             "Notes":q.get("notes","")+" | No reliable baseline price match."})
-            continue
-        qty=float(q.get("net_qty",0) or 0); waste=float(q.get("waste_pct",p["waste"]) or 0); gross=qty*(1+waste/100)
-        mh=gross*p["labor_h_per_unit"]
-        out.append({"Category":q.get("category",""),"Material / Activity":desc,"Unit":q.get("unit",p["unit"]),
+             "Notes":str(q.get("notes","") or "")+" | No reliable baseline price match."}); continue
+        qty=float(q.get("net_qty",0) or 0); waste=float(q.get("waste_pct",p["waste"]) or 0); gross=qty*(1+waste/100); mh=gross*p["labor_h_per_unit"]
+        out.append({"Building":building,"Category":q.get("category",""),"Material / Activity":desc,"Unit":q.get("unit",p["unit"]),
           "Net Qty":round(qty,2),"Waste %":waste,"Gross Qty":round(gross,2),"Indicative Unit Cost SAR":p["rate"],
           "Material Cost SAR":round(gross*p["rate"],2),"Labor Hours":round(mh,1),"Labor Rate SAR/h":LABOR_RATE_SAR_H,
           "Labor Cost SAR":round(mh*LABOR_RATE_SAR_H,2),"Total Direct Cost SAR":round(gross*p["rate"]+mh*LABOR_RATE_SAR_H,2),
           "Price Range SAR":f'{p["low"]:.2f}–{p["high"]:.2f}',"Quantity Source":q.get("source_reference","AI extraction"),
           "Confidence":q.get("confidence","LOW"),"Notes":q.get("notes","")})
     return out
-
 
 def benchmark_project_1_rows():
     """Preloaded benchmark based on supplied SRA contractor office plan + BOQ.
