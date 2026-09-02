@@ -1,0 +1,5 @@
+Item,Vendor,Unit Price,Lead Time Days,Warranty Months,Validity Days,Payment Terms
+CCTV Camera,Vendor A,1000,20,24,30,30 Days
+CCTV Camera,Vendor B,920,30,36,45,45 Days
+Access Controller,Vendor C,2000,15,24,30,30 Days
+Access Controller,Vendor D,1850,25,12,60,60 Days

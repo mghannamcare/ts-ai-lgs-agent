@@ -1,0 +1,41 @@
+{
+  "company": "TS",
+  "capabilities": [
+    {
+      "category": "ELV",
+      "solutions": [
+        "CCTV and video surveillance",
+        "Access control",
+        "Structured cabling and network passive infrastructure",
+        "Audio visual systems",
+        "Building management systems (BMS)",
+        "Intercom and related security systems"
+      ]
+    },
+    {
+      "category": "Industrial / Modular",
+      "solutions": [
+        "Prefab modular buildings",
+        "Light Gauge Steel (LGS) buildings",
+        "Site offices and temporary facilities",
+        "Guard rooms and cabins",
+        "Internal partitions and 2D wall panels",
+        "Temporary hoarding and fencing",
+        "Support structures for solar PV panels",
+        "Rental-ready modular units subject to availability"
+      ]
+    },
+    {
+      "category": "Special Applications",
+      "solutions": [
+        "Blast-resistant modular building engineering where project blast criteria, structural loads and certification requirements are defined"
+      ]
+    }
+  ],
+  "analysis_rules": [
+    "Never claim compliance unless the source document or TS knowledge base provides evidence.",
+    "Separate explicit requirements from AI inference.",
+    "Flag missing quantities, drawings, standards, interfaces and payment/commercial risks.",
+    "Give a confidence score and evidence references for material conclusions."
+  ]
+}
